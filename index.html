@@ -164,6 +164,7 @@
     to{ opacity:1; transform:translate(-50%, 0); }
   }
   .panel{
+    position:relative;
     background:var(--panel-bg);
     border:1px solid var(--panel-border);
     border-radius:20px;
@@ -172,6 +173,18 @@
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
   }
+  /* 右上角 × 關閉按鈕：44px 觸控區、低調灰字，跟隨面板一起旋轉 */
+  #closeBtn{
+    position:absolute; top:4px; right:4px; z-index:2;
+    width:44px; height:44px; min-height:44px;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; border:none; border-radius:50%;
+    color:var(--muted); font-size:22px; line-height:1; cursor:pointer;
+    padding:0;
+  }
+  #closeBtn:active{ color:var(--text); }
+  /* 第一行（亮度）右側讓出空間，避免檔位數字與 × 重疊 */
+  .panel .row:first-of-type{ padding-right:44px; }
   .row{ display:flex; align-items:center; gap:12px; }
   .row + .row{ margin-top:16px; }
   .label{
@@ -306,6 +319,7 @@
 
   <div id="controls" role="group" aria-label="夜鐘設定">
     <div class="panel">
+      <button type="button" id="closeBtn" aria-label="關閉">×</button>
       <div class="row">
         <span class="label" id="brightLabel">亮度</span>
         <div class="bright-wrap">
@@ -392,7 +406,7 @@
       bright:'亮度', levels:['很低','低','中','高'],
       color:'顏色', white:'暗白', red:'紅色', amber:'琥珀',
       display:'顯示', h12:'12 小時制', burn:'防燒屏移位', wake:'保持螢幕開啟',
-      lang:'語言', fs:'全螢幕',
+      lang:'語言', fs:'全螢幕', close:'關閉設定',
       hint:'點按畫面 · 顯示設定',
       foot:'在 iPhone／iPad 用 Safari 開啟，點「分享 → 加入主畫面」，即可像 App 一樣全螢幕使用。',
       stageLabel:'床頭夜鐘，點按畫面顯示或隱藏設定',
@@ -404,7 +418,7 @@
       bright:'Brightness', levels:['Very low','Low','Medium','High'],
       color:'Color', white:'Dim white', red:'Red', amber:'Amber',
       display:'Display', h12:'12-hour', burn:'Burn-in shift', wake:'Keep screen on',
-      lang:'Language', fs:'Full screen',
+      lang:'Language', fs:'Full screen', close:'Close settings',
       hint:'Tap the screen · Show settings',
       foot:'Open this page in Safari on iPhone or iPad, then tap Share → Add to Home Screen to use it full-screen, just like an app.',
       stageLabel:'Bedside night clock. Tap the screen to show or hide settings.',
@@ -417,7 +431,7 @@
       bright:'明るさ', levels:['とても低い','低い','普通','高い'],
       color:'色', white:'暗い白', red:'赤', amber:'琥珀',
       display:'表示', h12:'12時間制', burn:'焼き付き防止シフト', wake:'画面をオンに保つ',
-      lang:'言語', fs:'全画面',
+      lang:'言語', fs:'全画面', close:'設定を閉じる',
       hint:'画面をタップ · 設定を表示',
       foot:'iPhone / iPad の Safari で開き、「共有 → ホーム画面に追加」をタップすると、アプリのように全画面で使えます。',
       stageLabel:'ベッドサイド時計。画面をタップすると設定の表示と非表示を切り替えます。',
@@ -429,7 +443,7 @@
       bright:'밝기', levels:['매우 낮음','낮음','보통','높음'],
       color:'색상', white:'어두운 흰색', red:'빨간색', amber:'호박색',
       display:'표시', h12:'12시간제', burn:'번인 방지 이동', wake:'화면 켜짐 유지',
-      lang:'언어', fs:'전체 화면',
+      lang:'언어', fs:'전체 화면', close:'설정 닫기',
       hint:'화면을 탭 · 설정 표시',
       foot:'iPhone/iPad의 Safari에서 열고 「공유 → 홈 화면에 추가」를 탭하면 앱처럼 전체 화면으로 사용할 수 있습니다.',
       stageLabel:'침대 옆 야간 시계. 화면을 탭하면 설정이 표시되거나 숨겨집니다.',
@@ -441,7 +455,7 @@
       bright:'Kecerahan', levels:['Sangat rendah','Rendah','Sederhana','Tinggi'],
       color:'Warna', white:'Putih malap', red:'Merah', amber:'Ambar',
       display:'Paparan', h12:'Format 12 jam', burn:'Anjakan anti-burn-in', wake:'Skrin sentiasa hidup',
-      lang:'Bahasa', fs:'Skrin penuh',
+      lang:'Bahasa', fs:'Skrin penuh', close:'Tutup tetapan',
       hint:'Ketik skrin · Tunjuk tetapan',
       foot:'Buka halaman ini dalam Safari pada iPhone/iPad, ketik Kongsi → Tambah ke Skrin Utama untuk menggunakannya dalam skrin penuh seperti aplikasi.',
       stageLabel:'Jam malam tepi katil. Ketik skrin untuk menunjukkan atau menyembunyikan tetapan.',
@@ -454,7 +468,7 @@
       bright:'चमक', levels:['बहुत कम','कम','मध्यम','उच्च'],
       color:'रंग', white:'मंद सफ़ेद', red:'लाल', amber:'अंबर',
       display:'प्रदर्शन', h12:'12-घंटा प्रारूप', burn:'बर्न-इन शिफ़्ट', wake:'स्क्रीन चालू रखें',
-      lang:'भाषा', fs:'फ़ुल स्क्रीन',
+      lang:'भाषा', fs:'फ़ुल स्क्रीन', close:'सेटिंग बंद करें',
       hint:'स्क्रीन टैप करें · सेटिंग दिखाएँ',
       foot:'iPhone/iPad पर Safari में खोलें, फिर शेयर → होम स्क्रीन पर जोड़ें टैप करें और इसे ऐप की तरह फ़ुल स्क्रीन में उपयोग करें।',
       stageLabel:'बेडसाइड नाइट क्लॉक। सेटिंग दिखाने या छिपाने के लिए स्क्रीन टैप करें।',
@@ -612,6 +626,7 @@
     orNames[2].textContent = ol.landscape;
     document.getElementById('footText').textContent = dict.foot;
     document.getElementById('fsBtn').textContent = dict.fs;
+    document.getElementById('closeBtn').setAttribute('aria-label', dict.close);
     hint.textContent = dict.hint;
     stage.setAttribute('aria-label', dict.stageLabel);
     langBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-lang') === code ? 'true' : 'false'); });
@@ -773,6 +788,11 @@
   stage.addEventListener('click', toggleControls);
   stage.addEventListener('keydown', function(e){
     if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleControls(); }
+  });
+  /* 右上角 ×：立即關閉面板（點按畫面開關與 5 秒自動隱藏維持不變） */
+  document.getElementById('closeBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    hideControls();
   });
   controls.addEventListener('click', function(e){ e.stopPropagation(); pokeTimer(); });
   controls.addEventListener('touchstart', function(){ pokeTimer(); }, { passive:true });
