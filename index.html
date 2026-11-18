@@ -9,6 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="夜鐘" />
+<link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="data:," />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -799,6 +800,11 @@
 
   /* 開啟 6 秒後提示自動消失（若未互動） */
   setTimeout(function(){ hint.classList.add('gone'); }, 6000);
+
+  /* ---------- PWA：Service Worker 註冊（供安卓 Chrome 安裝為網頁 App） ---------- */
+  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
 })();
 </script>
 </body>

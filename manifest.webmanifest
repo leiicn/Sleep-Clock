@@ -1,0 +1,16 @@
+{
+  "name": "Sleep Clock · 床頭夜鐘",
+  "short_name": "Sleep Clock",
+  "description": "Fullscreen bedside night clock",
+  "lang": "zh-Hant",
+  "start_url": ".",
+  "scope": ".",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "icon.svg", "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
