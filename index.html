@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#000000" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="夜鐘" />
+<link rel="icon" href="data:," />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@300;400&family=Jost:wght@200;300&family=Nunito:wght@200;300;400&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+<title>Sleep Clock · 床頭夜鐘</title>
+<style>
+  :root{
+    --clock-color:#e9e6df;
+    --clock-brightness:0.82;
+    --panel-bg:#111111;
+    --panel-border:#2a2a2a;
+    --text:#f2f0eb;
+    --muted:#9a9790;
+    --track:#2c2c2c;
+    --accent:#e9e6df;
+  }
+  body[data-color="red"]{ --clock-color:#ff453a; --accent:#ff453a; }
+  body[data-color="amber"]{ --clock-color:#ffb340; --accent:#ffb340; }
+  body[data-color="white"]{ --clock-color:#e9e6df; --accent:#e9e6df; }
+
+  /* 時鐘字體（套用到時間數字與日期；中日韓與天城文字形由後備系統字體補上） */
+  body[data-font="system"]{ --clock-font:-apple-system, BlinkMacSystemFont, "PingFang TC","PingFang HK","Microsoft JhengHei","Noto Sans TC","Hiragino Sans","Noto Sans KR","Kohinoor Devanagari","Noto Sans Devanagari", sans-serif; }
+  body[data-font="rounded"]{ --clock-font:"Nunito","PingFang TC","PingFang HK","Microsoft JhengHei","Noto Sans TC","Hiragino Maru Gothic ProN","Noto Sans KR", sans-serif; }
+  body[data-font="mono"]{ --clock-font:"Share Tech Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  body[data-font="serif"]{ --clock-font:"EB Garamond", Georgia, "Songti TC","Songti SC","PMingLiU","Noto Serif TC","Noto Serif KR","Noto Serif Devanagari", serif; }
+  body[data-font="thin"]{ --clock-font:"Jost",-apple-system, BlinkMacSystemFont, "PingFang TC","PingFang HK","Microsoft JhengHei","Noto Sans TC","Hiragino Sans","Noto Sans KR", sans-serif; }
+  body[data-font="mono"] #timeRow{ letter-spacing:.01em; }
+  body[data-font="serif"] #timeRow{ letter-spacing:-.01em; }
+  /* 字體按鈕以自身字體顯示名稱作預覽 */
+  .font-btn[data-font="rounded"]{ font-family:"Nunito", sans-serif; }
+  .font-btn[data-font="mono"]{ font-family:"Share Tech Mono", monospace; }
+  .font-btn[data-font="serif"]{ font-family:"EB Garamond", serif; }
+  .font-btn[data-font="thin"]{ font-family:"Jost", sans-serif; }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:#000;
+    color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "PingFang TC","PingFang HK","Microsoft JhengHei","Noto Sans TC","Hiragino Sans","Noto Sans KR","Kohinoor Devanagari","Noto Sans Devanagari", sans-serif;
+    overflow:hidden;
+    touch-action:manipulation;
+    -webkit-user-select:none; user-select:none;
+    overscroll-behavior:none;
+  }
+  button, input{ font:inherit; }
+  button{ min-height:44px; }
+
+  /* ---------- Stage ---------- */
+  /* 時間字級由 --fs 統一控制：同時受寬度(vw)與高度(vh)約束，
+     豎屏直向堆疊、橫屏高度優先，任何方向都不超出螢幕。
+     另有 JS 自動縮放作最後防線，確保不溢出、不裁切。 */
+  body{ --fs:clamp(64px, min(27vw, 38vh), 330px); }              /* 豎屏 */
+  @media (orientation:landscape){
+    body{ --fs:clamp(64px, min(25vw, 55vh), 360px); }             /* 橫屏 */
+  }
+  @media (orientation:portrait) and (min-width:768px){
+    body{ --fs:clamp(120px, min(25vw, 34vh), 320px); }            /* iPad 豎屏 */
+  }
+  /* 旋轉容器：強制方向時整體旋轉 90° 並交換寬高，內容仍全屏置中 */
+  #rotator{ position:fixed; inset:0; overflow:hidden; }
+  #rotator.rot{
+    inset:auto; left:50%; top:50%;
+    width:100vh; width:100dvh; height:100vw;
+    transform:translate(-50%,-50%) rotate(90deg);
+  }
+  #stage{
+    position:fixed; inset:0; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; overflow:hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  #clockWrap{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:100%; max-width:100%;
+    text-align:center;
+    color:var(--clock-color);
+    filter:brightness(var(--clock-brightness));
+    transition:transform 2.4s ease-in-out, filter .25s ease, color .3s ease;
+    will-change:transform;
+    padding:0 3vw;
+  }
+  #timeRow{
+    display:flex; align-items:baseline; justify-content:center;
+    flex-wrap:nowrap; white-space:nowrap; max-width:100%;
+    line-height:0.95; letter-spacing:-0.04em;
+    font-family:var(--clock-font);
+    font-size:var(--fs);
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;
+  }
+  #timeMain{ font-weight:200; font-size:1em; }
+  #ampm{
+    font-size:max(.15em, 15px);
+    font-weight:500; letter-spacing:.14em;
+    margin-right:.5em; align-self:center;
+    display:none;
+  }
+  body[data-hour12="true"] #ampm{ display:block; }
+  #dateLine{
+    margin-top:clamp(10px, 2.2vh, 22px);
+    font-family:var(--clock-font);
+    font-size:clamp(17px, 3.4vw, 28px);
+    font-weight:400; letter-spacing:.22em;
+    opacity:.58; white-space:nowrap;
+  }
+  #dateLine .dot{ margin:0 .55em; opacity:.6; }
+
+  /* 橫屏（手機）：時間為主，日期在下方、更緊湊 */
+  @media (orientation:landscape) and (max-width:899px){
+    #dateLine{
+      margin-top:clamp(6px, 1.6vh, 12px);
+      font-size:clamp(14px, min(3vw, 4.6vh), 22px);
+    }
+  }
+  /* 橫屏（iPad 等寬螢幕）：日期移到時間右側，小字直向排列 */
+  @media (orientation:landscape) and (min-width:900px){
+    #clockWrap{ flex-direction:row; gap:4.5vw; text-align:left; }
+    #dateLine{
+      margin-top:0; display:flex; flex-direction:column; gap:.45em;
+      align-items:flex-start; line-height:1.5;
+      font-size:clamp(18px, 2vw, 27px);
+    }
+    #dateLine .dot{ display:none; }
+  }
+  /* 豎屏大螢幕（iPad）：日期字級略放寬 */
+  @media (orientation:portrait) and (min-width:768px){
+    #dateLine{ font-size:clamp(20px, 2.8vw, 30px); }
+  }
+
+  /* hint */
+  #hint{
+    position:fixed; left:50%; bottom:calc(28px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    font-size:13px; letter-spacing:.12em; color:#6f6d68;
+    transition:opacity 1s ease; pointer-events:none; white-space:nowrap;
+    z-index:5;
+  }
+  #hint.gone{ opacity:0; }
+
+  /* ---------- Controls ---------- */
+  #controls{
+    position:fixed; left:50%; bottom:0; transform:translate(-50%, 0);
+    width:min(680px, 100%);
+    padding:0 12px calc(12px + env(safe-area-inset-bottom));
+    display:none;
+    z-index:10;
+  }
+  body.controls-on #controls{ display:block; animation:panelIn .28s ease; }
+  @keyframes panelIn{
+    from{ opacity:0; transform:translate(-50%, 12px); }
+    to{ opacity:1; transform:translate(-50%, 0); }
+  }
+  .panel{
+    background:var(--panel-bg);
+    border:1px solid var(--panel-border);
+    border-radius:20px;
+    padding:18px 18px 14px;
+    max-height:calc(var(--rh, 100dvh) - 24px);
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .row{ display:flex; align-items:center; gap:12px; }
+  .row + .row{ margin-top:16px; }
+  .label{
+    flex:0 0 auto; min-width:52px; font-size:14px; color:var(--muted); letter-spacing:.06em; white-space:nowrap;
+  }
+  /* brightness slider */
+  #brightVal{ flex:0 0 auto; min-width:40px; text-align:right; font-size:14px; color:var(--text); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none;
+    flex:1; height:44px; background:transparent; cursor:pointer; margin:0;
+  }
+  input[type="range"]::-webkit-slider-runnable-track{ height:6px; border-radius:99px; background:var(--track); }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:28px; height:28px; border-radius:50%;
+    background:#f2f0eb; border:none; margin-top:-11px;
+    box-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  input[type="range"]::-moz-range-track{ height:6px; border-radius:99px; background:var(--track); }
+  input[type="range"]::-moz-range-thumb{ width:28px; height:28px; border-radius:50%; background:#f2f0eb; border:none; }
+  .moon{ font-size:15px; color:var(--muted); flex:0 0 auto; line-height:1; }
+
+  /* color swatches */
+  .swatches{ display:flex; gap:10px; flex:1; }
+  .swatch{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+    background:#1b1b1b; color:var(--muted);
+    border:1px solid #2c2c2c; border-radius:12px;
+    padding:0 10px; font-size:14px; cursor:pointer;
+  }
+  .swatch .chip{ width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
+  .swatch[aria-pressed="true"]{ color:var(--text); border-color:#5a5a5a; background:#232323; }
+  .chip-white{ background:#e9e6df; } .chip-red{ background:#ff453a; } .chip-amber{ background:#ffb340; }
+
+  /* toggles */
+  .toggles{ display:flex; flex-wrap:wrap; gap:8px; flex:1; }
+  .toggle{
+    display:inline-flex; align-items:center; gap:7px;
+    background:#1b1b1b; border:1px solid #2c2c2c; color:var(--muted);
+    border-radius:99px; padding:0 14px; font-size:13.5px; cursor:pointer;
+  }
+  .toggle .tdot{ width:7px; height:7px; border-radius:50%; background:#4a4a4a; flex:0 0 auto; }
+  .toggle[aria-pressed="true"]{ color:var(--text); border-color:#5a5a5a; }
+  .toggle[aria-pressed="true"] .tdot{ background:var(--accent); }
+
+  .foot{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-top:16px; padding-top:12px; border-top:1px solid #222;
+  }
+  .foot p{ margin:0; font-size:12.5px; line-height:1.55; color:#74726d; flex:1; }
+  #fsBtn{
+    flex:0 0 auto; background:transparent; border:1px solid #333; color:var(--text);
+    border-radius:10px; padding:0 14px; font-size:13.5px; cursor:pointer;
+  }
+
+  /* ---------- 強制方向（旋轉後）的版面補正 ---------- */
+  /* 媒體查詢看的是裝置方向；旋轉時改按 JS 標記的有效方向排版，字級由 JS 以 --fs / --date-fs 補正 */
+  body[data-rot="1"] #dateLine{ font-size:var(--date-fs); }
+  body[data-rot="1"][data-eff="landscape"] #dateLine{ margin-top:clamp(6px, 1.6vh, 12px); }
+  body[data-rot="1"][data-eff="landscape"][data-effwide="1"] #clockWrap{ flex-direction:row; gap:4.5%; text-align:left; }
+  body[data-rot="1"][data-eff="landscape"][data-effwide="1"] #dateLine{
+    margin-top:0; display:flex; flex-direction:column; gap:.45em;
+    align-items:flex-start; line-height:1.5;
+  }
+  body[data-rot="1"][data-eff="landscape"][data-effwide="1"] #dateLine .dot{ display:none; }
+  body[data-rot="1"][data-eff="portrait"] #clockWrap{ flex-direction:column; text-align:center; }
+  body[data-rot="1"][data-eff="portrait"] #dateLine{ margin-top:clamp(10px, 2.2vh, 22px); display:block; }
+  body[data-rot="1"][data-eff="portrait"] #dateLine .dot{ display:inline; }
+  /* 旋轉後有效高度偏矮時，面板比照矮橫屏收緊 */
+  body[data-effshort="1"] .panel{ padding:12px 16px 10px; border-radius:16px; }
+  body[data-effshort="1"] .row + .row{ margin-top:8px; }
+  body[data-effshort="1"] .foot{ margin-top:10px; padding-top:8px; }
+  body[data-effshort="1"] .foot p{ font-size:11.5px; }
+
+  /* 印地語（天城文）連字不可被字距拆開，字距收窄 */
+  body[data-lang="hi"] #dateLine{ letter-spacing:.03em; }
+  body[data-lang="hi"] #ampm{ letter-spacing:.04em; }
+  body[data-lang="hi"] #hint{ letter-spacing:.02em; }
+
+  @media (max-width:480px){
+    .label{ min-width:42px; font-size:13px; }
+    .panel{ padding:16px 14px 12px; border-radius:18px; }
+  }
+  /* 橫屏矮螢幕（手機橫放）：設定面板收緊，必要時面板內捲動，頁面本身不出滾動條 */
+  @media (orientation:landscape) and (max-height:540px){
+    #controls{ width:min(760px, 100%); }
+    .panel{ padding:12px 16px 10px; border-radius:16px; }
+    .row + .row{ margin-top:8px; }
+    .foot{ margin-top:10px; padding-top:8px; }
+    .foot p{ font-size:11.5px; }
+    #hint{ bottom:calc(14px + env(safe-area-inset-bottom)); }
+  }
+  @media (prefers-reduced-motion:reduce){
+    #clockWrap{ transition:filter .25s ease, color .3s ease; }
+    body.controls-on #controls{ animation:none; }
+  }
+</style>
+</head>
+<body data-color="white" data-hour12="false" data-lang="zh-Hant" data-font="system" data-rot="0" data-eff="portrait" data-effwide="0" data-effshort="0">
+
+  <div id="rotator">
+  <main id="stage" role="button" tabindex="0" aria-label="床頭夜鐘，點按畫面顯示或隱藏設定">
+    <div id="clockWrap">
+      <div id="timeRow">
+        <span id="ampm">上午</span>
+        <span id="timeMain">00:00</span>
+      </div>
+      <div id="dateLine">—</div>
+    </div>
+  </main>
+
+  <div id="hint">點按畫面 · 顯示設定</div>
+
+  <div id="controls" role="group" aria-label="夜鐘設定">
+    <div class="panel">
+      <div class="row">
+        <span class="label" id="brightLabel">亮度</span>
+        <span class="moon" aria-hidden="true">☾</span>
+        <input type="range" id="bright" min="5" max="100" value="72" step="1" aria-labelledby="brightLabel" />
+        <span id="brightVal">中</span>
+      </div>
+
+      <div class="row">
+        <span class="label" id="colorLabel">顏色</span>
+        <div class="swatches" role="group" aria-label="顯示顏色">
+          <button type="button" class="swatch" data-setcolor="white" aria-pressed="true"><span class="chip chip-white"></span><span class="sw-name">暗白</span></button>
+          <button type="button" class="swatch" data-setcolor="red" aria-pressed="false"><span class="chip chip-red"></span><span class="sw-name">紅色</span></button>
+          <button type="button" class="swatch" data-setcolor="amber" aria-pressed="false"><span class="chip chip-amber"></span><span class="sw-name">琥珀</span></button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label" id="displayLabel">顯示</span>
+        <div class="toggles">
+          <button type="button" class="toggle" id="tgl12" aria-pressed="false"><span class="tdot"></span><span class="tg-name">12 小時制</span></button>
+          <button type="button" class="toggle" id="tglBurn" aria-pressed="true"><span class="tdot"></span><span class="tg-name">防燒屏移位</span></button>
+          <button type="button" class="toggle" id="tglWake" aria-pressed="false"><span class="tdot"></span><span class="tg-name">保持螢幕開啟</span></button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label" id="fontLabel">字體</span>
+        <div class="toggles" role="group" aria-label="Font">
+          <button type="button" class="toggle font-btn" data-font="system" aria-pressed="true"><span class="tdot"></span><span class="fn-name">系統預設</span></button>
+          <button type="button" class="toggle font-btn" data-font="rounded" aria-pressed="false"><span class="tdot"></span><span class="fn-name">圓體</span></button>
+          <button type="button" class="toggle font-btn" data-font="mono" aria-pressed="false"><span class="tdot"></span><span class="fn-name">數碼等寬</span></button>
+          <button type="button" class="toggle font-btn" data-font="serif" aria-pressed="false"><span class="tdot"></span><span class="fn-name">襯線優雅</span></button>
+          <button type="button" class="toggle font-btn" data-font="thin" aria-pressed="false"><span class="tdot"></span><span class="fn-name">細體現代</span></button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label" id="langLabel">語言</span>
+        <div class="toggles" role="group" aria-label="Language">
+          <button type="button" class="toggle lang-btn" data-lang="zh-Hant" aria-pressed="true"><span class="tdot"></span>繁體中文</button>
+          <button type="button" class="toggle lang-btn" data-lang="en" aria-pressed="false"><span class="tdot"></span>English</button>
+          <button type="button" class="toggle lang-btn" data-lang="ja" aria-pressed="false"><span class="tdot"></span>日本語</button>
+          <button type="button" class="toggle lang-btn" data-lang="ko" aria-pressed="false"><span class="tdot"></span>한국어</button>
+          <button type="button" class="toggle lang-btn" data-lang="ms" aria-pressed="false"><span class="tdot"></span>Melayu</button>
+          <button type="button" class="toggle lang-btn" data-lang="hi" aria-pressed="false"><span class="tdot"></span>हिन्दी</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span class="label" id="orientLabel">螢幕方向</span>
+        <div class="toggles" role="group" aria-label="Orientation">
+          <button type="button" class="toggle orient-btn" data-orient="auto" aria-pressed="true"><span class="tdot"></span><span class="or-name">自動</span></button>
+          <button type="button" class="toggle orient-btn" data-orient="portrait" aria-pressed="false"><span class="tdot"></span><span class="or-name">豎屏</span></button>
+          <button type="button" class="toggle orient-btn" data-orient="landscape" aria-pressed="false"><span class="tdot"></span><span class="or-name">橫屏</span></button>
+        </div>
+      </div>
+
+      <div class="foot">
+        <p id="footText">在 iPhone／iPad 用 Safari 開啟，點「分享 → 加入主畫面」，即可像 App 一樣全螢幕使用。</p>
+        <button type="button" id="fsBtn">全螢幕</button>
+      </div>
+    </div>
+  </div>
+  </div><!-- /#rotator -->
+
+<script>
+(function(){
+  var timeMain = document.getElementById('timeMain');
+  var timeRow = document.getElementById('timeRow');
+  var ampmEl = document.getElementById('ampm');
+  var dateLine = document.getElementById('dateLine');
+  var wrap = document.getElementById('clockWrap');
+  var stage = document.getElementById('stage');
+  var controls = document.getElementById('controls');
+  var hint = document.getElementById('hint');
+  var bright = document.getElementById('bright');
+  var brightVal = document.getElementById('brightVal');
+
+  /* ---------- 多語言字串 ---------- */
+  var I18N = {
+    'zh-Hant': {
+      bright:'亮度', levels:['很低','低','中','高'],
+      color:'顏色', white:'暗白', red:'紅色', amber:'琥珀',
+      display:'顯示', h12:'12 小時制', burn:'防燒屏移位', wake:'保持螢幕開啟',
+      lang:'語言', fs:'全螢幕',
+      hint:'點按畫面 · 顯示設定',
+      foot:'在 iPhone／iPad 用 Safari 開啟，點「分享 → 加入主畫面」，即可像 App 一樣全螢幕使用。',
+      stageLabel:'床頭夜鐘，點按畫面顯示或隱藏設定',
+      am:'上午', pm:'下午',
+      week:['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],
+      date:function(m, d){ return m + '月' + d + '日'; }
+    },
+    'en': {
+      bright:'Brightness', levels:['Very low','Low','Medium','High'],
+      color:'Color', white:'Dim white', red:'Red', amber:'Amber',
+      display:'Display', h12:'12-hour', burn:'Burn-in shift', wake:'Keep screen on',
+      lang:'Language', fs:'Full screen',
+      hint:'Tap the screen · Show settings',
+      foot:'Open this page in Safari on iPhone or iPad, then tap Share → Add to Home Screen to use it full-screen, just like an app.',
+      stageLabel:'Bedside night clock. Tap the screen to show or hide settings.',
+      am:'AM', pm:'PM',
+      week:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+      months:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      date:function(m, d){ return this.months[m - 1] + ' ' + d; }
+    },
+    'ja': {
+      bright:'明るさ', levels:['とても低い','低い','普通','高い'],
+      color:'色', white:'暗い白', red:'赤', amber:'琥珀',
+      display:'表示', h12:'12時間制', burn:'焼き付き防止シフト', wake:'画面をオンに保つ',
+      lang:'言語', fs:'全画面',
+      hint:'画面をタップ · 設定を表示',
+      foot:'iPhone / iPad の Safari で開き、「共有 → ホーム画面に追加」をタップすると、アプリのように全画面で使えます。',
+      stageLabel:'ベッドサイド時計。画面をタップすると設定の表示と非表示を切り替えます。',
+      am:'午前', pm:'午後',
+      week:['日曜日','月曜日','火曜日','水曜日','木曜日','金曜日','土曜日'],
+      date:function(m, d){ return m + '月' + d + '日'; }
+    },
+    'ko': {
+      bright:'밝기', levels:['매우 낮음','낮음','보통','높음'],
+      color:'색상', white:'어두운 흰색', red:'빨간색', amber:'호박색',
+      display:'표시', h12:'12시간제', burn:'번인 방지 이동', wake:'화면 켜짐 유지',
+      lang:'언어', fs:'전체 화면',
+      hint:'화면을 탭 · 설정 표시',
+      foot:'iPhone/iPad의 Safari에서 열고 「공유 → 홈 화면에 추가」를 탭하면 앱처럼 전체 화면으로 사용할 수 있습니다.',
+      stageLabel:'침대 옆 야간 시계. 화면을 탭하면 설정이 표시되거나 숨겨집니다.',
+      am:'오전', pm:'오후',
+      week:['일요일','월요일','화요일','수요일','목요일','금요일','토요일'],
+      date:function(m, d){ return m + '월 ' + d + '일'; }
+    },
+    'ms': {
+      bright:'Kecerahan', levels:['Sangat rendah','Rendah','Sederhana','Tinggi'],
+      color:'Warna', white:'Putih malap', red:'Merah', amber:'Ambar',
+      display:'Paparan', h12:'Format 12 jam', burn:'Anjakan anti-burn-in', wake:'Skrin sentiasa hidup',
+      lang:'Bahasa', fs:'Skrin penuh',
+      hint:'Ketik skrin · Tunjuk tetapan',
+      foot:'Buka halaman ini dalam Safari pada iPhone/iPad, ketik Kongsi → Tambah ke Skrin Utama untuk menggunakannya dalam skrin penuh seperti aplikasi.',
+      stageLabel:'Jam malam tepi katil. Ketik skrin untuk menunjukkan atau menyembunyikan tetapan.',
+      am:'AM', pm:'PM',
+      week:['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'],
+      months:['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogo','Sep','Okt','Nov','Dis'],
+      date:function(m, d){ return d + ' ' + this.months[m - 1]; }
+    },
+    'hi': {
+      bright:'चमक', levels:['बहुत कम','कम','मध्यम','उच्च'],
+      color:'रंग', white:'मंद सफ़ेद', red:'लाल', amber:'अंबर',
+      display:'प्रदर्शन', h12:'12-घंटा प्रारूप', burn:'बर्न-इन शिफ़्ट', wake:'स्क्रीन चालू रखें',
+      lang:'भाषा', fs:'फ़ुल स्क्रीन',
+      hint:'स्क्रीन टैप करें · सेटिंग दिखाएँ',
+      foot:'iPhone/iPad पर Safari में खोलें, फिर शेयर → होम स्क्रीन पर जोड़ें टैप करें और इसे ऐप की तरह फ़ुल स्क्रीन में उपयोग करें।',
+      stageLabel:'बेडसाइड नाइट क्लॉक। सेटिंग दिखाने या छिपाने के लिए स्क्रीन टैप करें।',
+      am:'पूर्वाह्न', pm:'अपराह्न',
+      week:['रविवार','सोमवार','मंगलवार','बुधवार','गुरुवार','शुक्रवार','शनिवार'],
+      months:['जनवरी','फ़रवरी','मार्च','अप्रैल','मई','जून','जुलाई','अगस्त','सितंबर','अक्टूबर','नवंबर','दिसंबर'],
+      date:function(m, d){ return d + ' ' + this.months[m - 1]; }
+    }
+  };
+  var state = { hour12:false, burn:true, wake:false, lang:'zh-Hant', orient:'auto', lastMin:-1, lastDay:-1 };
+  function L(){ return I18N[state.lang] || I18N['zh-Hant']; }
+
+  /* 防燒屏：在小範圍內循環的偏移位置（每分鐘移動一次） */
+  var OFFSETS = [[0,0],[10,-6],[-8,8],[14,4],[-12,-4],[6,12],[-4,-10],[12,10],[-14,2],[4,-12],[-6,6],[0,-8]];
+  function applyBurn(minuteOfDay){
+    if(!state.burn){ wrap.style.transform = 'translate(0px,0px)'; return; }
+    var o = OFFSETS[minuteOfDay % OFFSETS.length];
+    wrap.style.transform = 'translate(' + o[0] + 'px,' + o[1] + 'px)';
+  }
+
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+
+  /* 自動縮放最後防線：量測時間列寬度，超出可用寬度時等比縮小字級 */
+  function fitClock(){
+    timeRow.style.fontSize = '';
+    var availW = stage.clientWidth - 36;   /* 預留防燒屏移位空間 */
+    var availH = stage.clientHeight - 30;
+    var w = timeRow.scrollWidth;
+    var h = wrap.offsetHeight;
+    var base = parseFloat(window.getComputedStyle(timeRow).fontSize);
+    var ratio = 1;
+    if(w > availW) ratio = Math.min(ratio, availW / w);
+    if(h > availH) ratio = Math.min(ratio, availH / h);
+    if(ratio < 1) timeRow.style.fontSize = Math.floor(base * ratio * 0.99) + 'px';
+  }
+
+  function tick(){
+    var now = new Date();
+    var minuteOfDay = now.getHours() * 60 + now.getMinutes();
+    if(minuteOfDay === state.lastMin && now.getDate() === state.lastDay) return;
+    state.lastMin = minuteOfDay;
+    state.lastDay = now.getDate();
+    var h = now.getHours();
+    var dict = L();
+    ampmEl.textContent = h < 12 ? dict.am : dict.pm;
+    if(state.hour12){
+      var h12 = h % 12; if(h12 === 0) h12 = 12;
+      timeMain.textContent = pad(h12) + ':' + pad(now.getMinutes());
+    } else {
+      timeMain.textContent = pad(h) + ':' + pad(now.getMinutes());
+    }
+    dateLine.innerHTML = '<span>' + dict.date(now.getMonth()+1, now.getDate()) + '</span>'
+      + '<span class="dot">·</span><span>' + dict.week[now.getDay()] + '</span>';
+    applyBurn(minuteOfDay);
+    fitClock();
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  var fitQueued = false;
+  function queueFit(){
+    if(fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(function(){ fitQueued = false; fitClock(); });
+  }
+  window.addEventListener('resize', queueFit);
+  window.addEventListener('orientationchange', function(){ setTimeout(queueFit, 60); });
+
+  /* ---------- 亮度 ---------- */
+  function brightText(v){
+    var lv = L().levels;
+    if(v <= 20) return lv[0];
+    if(v <= 45) return lv[1];
+    if(v <= 75) return lv[2];
+    return lv[3];
+  }
+  function applyBright(){
+    var v = parseInt(bright.value, 10);
+    var b = 0.05 + (v / 100) * 0.95;   /* 最低仍約 0.10，避免暗到看不見 */
+    document.body.style.setProperty('--clock-brightness', b.toFixed(3));
+    brightVal.textContent = brightText(v);
+  }
+  bright.addEventListener('input', function(){ applyBright(); pokeTimer(); });
+  applyBright();
+
+  /* ---------- 顏色 ---------- */
+  var swatches = controls.querySelectorAll('[data-setcolor]');
+  swatches.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.body.setAttribute('data-color', btn.getAttribute('data-setcolor'));
+      swatches.forEach(function(b){ b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+      pokeTimer();
+    });
+  });
+
+  /* ---------- 語言 ---------- */
+  var FONT_LABELS = {
+    'zh-Hant': { label:'字體', system:'系統預設', rounded:'圓體', mono:'數碼等寬', serif:'襯線優雅', thin:'細體現代' },
+    'en':      { label:'Font', system:'System', rounded:'Rounded', mono:'Digital mono', serif:'Serif', thin:'Thin modern' },
+    'ja':      { label:'フォント', system:'システム', rounded:'丸ゴシック', mono:'デジタル', serif:'明朝体', thin:'細字モダン' },
+    'ko':      { label:'글꼴', system:'시스템', rounded:'둥근체', mono:'디지털', serif:'명조체', thin:'얇은 모던' },
+    'ms':      { label:'Fon', system:'Sistem', rounded:'Bulat', mono:'Digital', serif:'Serif', thin:'Nipis moden' },
+    'hi':      { label:'फ़ॉन्ट', system:'सिस्टम', rounded:'गोल', mono:'डिजिटल', serif:'सेरिफ़', thin:'पतला आधुनिक' }
+  };
+  var ORIENT_LABELS = {
+    'zh-Hant': { label:'螢幕方向', auto:'自動', portrait:'豎屏', landscape:'橫屏' },
+    'en':      { label:'Orientation', auto:'Auto', portrait:'Portrait', landscape:'Landscape' },
+    'ja':      { label:'画面の向き', auto:'自動', portrait:'縦向き', landscape:'横向き' },
+    'ko':      { label:'화면 방향', auto:'자동', portrait:'세로', landscape:'가로' },
+    'ms':      { label:'Orientasi', auto:'Auto', portrait:'Potret', landscape:'Landskap' },
+    'hi':      { label:'स्क्रीन दिशा', auto:'ऑटो', portrait:'पोर्ट्रेट', landscape:'लैंडस्केप' }
+  };
+  var langBtns = controls.querySelectorAll('.lang-btn');
+  var fontBtns = controls.querySelectorAll('.font-btn');
+  function applyLang(code){
+    if(!I18N[code]) code = 'zh-Hant';
+    state.lang = code;
+    var dict = I18N[code];
+    var fl = FONT_LABELS[code];
+    document.documentElement.lang = code;
+    document.body.setAttribute('data-lang', code);
+    document.getElementById('brightLabel').textContent = dict.bright;
+    document.getElementById('colorLabel').textContent = dict.color;
+    document.getElementById('displayLabel').textContent = dict.display;
+    document.getElementById('langLabel').textContent = dict.lang;
+    document.getElementById('fontLabel').textContent = fl.label;
+    var swNames = controls.querySelectorAll('.sw-name');
+    swNames[0].textContent = dict.white;
+    swNames[1].textContent = dict.red;
+    swNames[2].textContent = dict.amber;
+    document.querySelector('#tgl12 .tg-name').textContent = dict.h12;
+    document.querySelector('#tglBurn .tg-name').textContent = dict.burn;
+    document.querySelector('#tglWake .tg-name').textContent = dict.wake;
+    var fnNames = controls.querySelectorAll('.fn-name');
+    fnNames[0].textContent = fl.system;
+    fnNames[1].textContent = fl.rounded;
+    fnNames[2].textContent = fl.mono;
+    fnNames[3].textContent = fl.serif;
+    fnNames[4].textContent = fl.thin;
+    var ol = ORIENT_LABELS[code];
+    document.getElementById('orientLabel').textContent = ol.label;
+    var orNames = controls.querySelectorAll('.or-name');
+    orNames[0].textContent = ol.auto;
+    orNames[1].textContent = ol.portrait;
+    orNames[2].textContent = ol.landscape;
+    document.getElementById('footText').textContent = dict.foot;
+    document.getElementById('fsBtn').textContent = dict.fs;
+    hint.textContent = dict.hint;
+    stage.setAttribute('aria-label', dict.stageLabel);
+    langBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-lang') === code ? 'true' : 'false'); });
+    applyBright();
+    state.lastMin = -1; tick();
+  }
+  langBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      applyLang(btn.getAttribute('data-lang'));
+      pokeTimer();
+    });
+  });
+  function detectLang(){
+    var nav = (navigator.language || '').toLowerCase();
+    if(nav.indexOf('ja') === 0) return 'ja';
+    if(nav.indexOf('ko') === 0) return 'ko';
+    if(nav.indexOf('ms') === 0 || nav.indexOf('id') === 0) return 'ms';
+    if(nav.indexOf('hi') === 0) return 'hi';
+    if(nav.indexOf('en') === 0) return 'en';
+    return 'zh-Hant';
+  }
+  applyLang(detectLang());
+
+  /* ---------- 字體 ---------- */
+  fontBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.body.setAttribute('data-font', btn.getAttribute('data-font'));
+      fontBtns.forEach(function(b){ b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+      pokeTimer();
+      queueFit();
+      if(document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
+    });
+  });
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
+
+  /* ---------- 螢幕方向 ---------- */
+  /* iOS Safari 不支援 Screen Orientation Lock，改用 CSS 旋轉 #rotator：
+     強制方向與裝置實際方向不一致時旋轉 90° 並交換寬高（見 CSS #rotator.rot）。
+     旋轉後媒體查詢仍按裝置方向判斷，故字級改由 JS 按「有效寬高」補正 --fs / --date-fs，
+     版面差異由 body[data-eff] 系列覆寫規則處理；fitClock 量的是容器本地尺寸，旋轉後照常運作。 */
+  var rotator = document.getElementById('rotator');
+  function clampNum(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function updateOrientation(){
+    var devPortrait = window.innerHeight >= window.innerWidth;
+    var needRot = (state.orient === 'portrait' && !devPortrait)
+               || (state.orient === 'landscape' && devPortrait);
+    rotator.classList.toggle('rot', needRot);
+    var effW = rotator.clientWidth, effH = rotator.clientHeight;
+    var eff = effW >= effH ? 'landscape' : 'portrait';
+    document.body.setAttribute('data-rot', needRot ? '1' : '0');
+    document.body.setAttribute('data-eff', eff);
+    document.body.setAttribute('data-effwide', effW >= 900 ? '1' : '0');
+    document.body.setAttribute('data-effshort', (needRot && effH <= 540) ? '1' : '0');
+    if(needRot){
+      var fs, dfs;
+      if(eff === 'landscape'){
+        fs = clampNum(64, Math.min(effW * 0.25, effH * 0.55), 360);
+        dfs = effW >= 900 ? clampNum(18, effW * 0.02, 27)
+                          : clampNum(14, Math.min(effW * 0.03, effH * 0.046), 22);
+      } else if(effW >= 768){
+        fs = clampNum(120, Math.min(effW * 0.25, effH * 0.34), 320);
+        dfs = clampNum(20, effW * 0.028, 30);
+      } else {
+        fs = clampNum(64, Math.min(effW * 0.27, effH * 0.38), 330);
+        dfs = clampNum(17, effW * 0.034, 28);
+      }
+      document.body.style.setProperty('--fs', fs.toFixed(1) + 'px');
+      document.body.style.setProperty('--date-fs', dfs.toFixed(1) + 'px');
+      document.body.style.setProperty('--rh', effH + 'px');
+    } else {
+      document.body.style.removeProperty('--fs');
+      document.body.style.removeProperty('--date-fs');
+      document.body.style.removeProperty('--rh');
+    }
+    queueFit();
+  }
+  var orientBtns = controls.querySelectorAll('.orient-btn');
+  orientBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.orient = btn.getAttribute('data-orient');
+      orientBtns.forEach(function(b){ b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+      updateOrientation();
+      pokeTimer();
+    });
+  });
+  window.addEventListener('resize', updateOrientation);
+  window.addEventListener('orientationchange', function(){ setTimeout(updateOrientation, 80); });
+  updateOrientation();
+
+  /* ---------- 開關 ---------- */
+  function bindToggle(id, fn){
+    var el = document.getElementById(id);
+    el.addEventListener('click', function(){
+      var on = el.getAttribute('aria-pressed') !== 'true';
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      fn(on);
+      pokeTimer();
+    });
+    return el;
+  }
+  bindToggle('tgl12', function(on){
+    state.hour12 = on;
+    document.body.setAttribute('data-hour12', on ? 'true' : 'false');
+    state.lastMin = -1; tick();
+  });
+  bindToggle('tglBurn', function(on){
+    state.burn = on;
+    applyBurn(new Date().getHours() * 60 + new Date().getMinutes());
+  });
+
+  /* ---------- 保持螢幕開啟 (Wake Lock) ---------- */
+  var wakeLock = null;
+  function requestWake(){
+    if(!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(lock){
+      wakeLock = lock;
+      lock.addEventListener('release', function(){ wakeLock = null; });
+    }).catch(function(){});
+  }
+  bindToggle('tglWake', function(on){
+    state.wake = on;
+    if(on) requestWake();
+    else if(wakeLock){ wakeLock.release(); wakeLock = null; }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && state.wake && !wakeLock) requestWake();
+  });
+
+  /* ---------- 全螢幕 ---------- */
+  document.getElementById('fsBtn').addEventListener('click', function(){
+    pokeTimer();
+    if(document.fullscreenElement){
+      if(document.exitFullscreen) document.exitFullscreen();
+    } else if(document.documentElement.requestFullscreen){
+      document.documentElement.requestFullscreen().catch(function(){});
+    }
+  });
+
+  /* ---------- 顯示 / 隱藏控制項 ---------- */
+  var hideTimer = null;
+  function showControls(){
+    document.body.classList.add('controls-on');
+    hint.classList.add('gone');
+    pokeTimer();
+  }
+  function hideControls(){
+    document.body.classList.remove('controls-on');
+    if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+  }
+  function pokeTimer(){
+    if(!document.body.classList.contains('controls-on')) return;
+    if(hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideControls, 5000);
+  }
+  function toggleControls(){
+    if(document.body.classList.contains('controls-on')) hideControls();
+    else showControls();
+  }
+  stage.addEventListener('click', toggleControls);
+  stage.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleControls(); }
+  });
+  controls.addEventListener('click', function(e){ e.stopPropagation(); pokeTimer(); });
+  controls.addEventListener('touchstart', function(){ pokeTimer(); }, { passive:true });
+
+  /* 開啟 6 秒後提示自動消失（若未互動） */
+  setTimeout(function(){ hint.classList.add('gone'); }, 6000);
+})();
+</script>
+</body>
+</html>
