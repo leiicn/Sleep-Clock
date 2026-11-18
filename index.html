@@ -177,8 +177,41 @@
   .label{
     flex:0 0 auto; min-width:52px; font-size:14px; color:var(--muted); letter-spacing:.06em; white-space:nowrap;
   }
-  /* brightness levels（10 檔分段按鈕，沿用 .toggle 樣式，數字標示） */
-  .bright-btn{ padding:0 11px; font-variant-numeric:tabular-nums; }
+  /* brightness：條狀滑桿，10 檔吸附（step=1），旁邊顯示目前檔位數字 */
+  .bright-wrap{ flex:1; padding:0 2px; }
+  #brightRange{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:44px; margin:0; background:transparent; cursor:pointer; display:block;
+  }
+  #brightRange::-webkit-slider-runnable-track{
+    height:6px; border-radius:3px; background:var(--track);
+  }
+  #brightRange::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:26px; height:26px; border-radius:50%;
+    background:var(--accent); border:none;
+    margin-top:-10px;
+    box-shadow:0 1px 5px rgba(0,0,0,.55);
+  }
+  #brightRange::-moz-range-track{
+    height:6px; border-radius:3px; background:var(--track);
+  }
+  #brightRange::-moz-range-thumb{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--accent); border:none;
+    box-shadow:0 1px 5px rgba(0,0,0,.55);
+  }
+  #brightRange:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+  .bright-ticks{
+    display:flex; justify-content:space-between;
+    padding:0 13px; margin-top:-8px; pointer-events:none;
+  }
+  .bright-ticks span{ width:2px; height:6px; border-radius:1px; background:#3d3d3d; }
+  #brightVal{
+    flex:0 0 auto; min-width:30px; text-align:center;
+    font-size:17px; font-weight:500; color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
 
   /* color swatches */
   .swatches{ display:flex; gap:10px; flex:1; }
@@ -275,18 +308,13 @@
     <div class="panel">
       <div class="row">
         <span class="label" id="brightLabel">亮度</span>
-        <div class="toggles" role="group" aria-label="Brightness">
-          <button type="button" class="toggle bright-btn" data-level="0" aria-pressed="false"><span class="tdot"></span>1</button>
-          <button type="button" class="toggle bright-btn" data-level="1" aria-pressed="false"><span class="tdot"></span>2</button>
-          <button type="button" class="toggle bright-btn" data-level="2" aria-pressed="false"><span class="tdot"></span>3</button>
-          <button type="button" class="toggle bright-btn" data-level="3" aria-pressed="false"><span class="tdot"></span>4</button>
-          <button type="button" class="toggle bright-btn" data-level="4" aria-pressed="true"><span class="tdot"></span>5</button>
-          <button type="button" class="toggle bright-btn" data-level="5" aria-pressed="false"><span class="tdot"></span>6</button>
-          <button type="button" class="toggle bright-btn" data-level="6" aria-pressed="false"><span class="tdot"></span>7</button>
-          <button type="button" class="toggle bright-btn" data-level="7" aria-pressed="false"><span class="tdot"></span>8</button>
-          <button type="button" class="toggle bright-btn" data-level="8" aria-pressed="false"><span class="tdot"></span>9</button>
-          <button type="button" class="toggle bright-btn" data-level="9" aria-pressed="false"><span class="tdot"></span>10</button>
+        <div class="bright-wrap">
+          <input type="range" id="brightRange" min="1" max="10" step="1" value="5" aria-labelledby="brightLabel" />
+          <div class="bright-ticks" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
         </div>
+        <span id="brightVal" aria-hidden="true">5</span>
       </div>
 
       <div class="row">
@@ -502,22 +530,23 @@
     var savedBright = parseInt(window.localStorage.getItem(BRIGHT_KEY), 10);
     if(savedBright >= 0 && savedBright < BRIGHT_VALUES.length) state.brightLevel = savedBright;
   } catch(e){}
-  var brightBtns = controls.querySelectorAll('.bright-btn');
+  var brightRange = document.getElementById('brightRange');
+  var brightVal = document.getElementById('brightVal');
   function applyBright(){
     var v = BRIGHT_VALUES[state.brightLevel];
     var b = 0.05 + (v / 100) * 0.95;   /* 最低仍約 0.145，避免暗到看不見 */
     document.body.style.setProperty('--clock-brightness', b.toFixed(3));
-    brightBtns.forEach(function(btn, i){
-      btn.setAttribute('aria-pressed', i === state.brightLevel ? 'true' : 'false');
-    });
+    brightRange.value = String(state.brightLevel + 1);
+    brightVal.textContent = String(state.brightLevel + 1);
   }
-  brightBtns.forEach(function(btn){
-    btn.addEventListener('click', function(){
-      state.brightLevel = parseInt(btn.getAttribute('data-level'), 10);
-      try { window.localStorage.setItem(BRIGHT_KEY, String(state.brightLevel)); } catch(e){}
-      applyBright();
-      pokeTimer();
-    });
+  /* 條狀滑桿：step=1 吸附整數檔位，拖動或點按軌道即時生效並記住 */
+  brightRange.addEventListener('input', function(){
+    var lvl = parseInt(brightRange.value, 10);
+    if(isNaN(lvl)) return;
+    state.brightLevel = lvl - 1;
+    try { window.localStorage.setItem(BRIGHT_KEY, String(state.brightLevel)); } catch(e){}
+    applyBright();
+    pokeTimer();
   });
   applyBright();
 
