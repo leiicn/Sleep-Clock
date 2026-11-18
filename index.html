@@ -177,21 +177,8 @@
   .label{
     flex:0 0 auto; min-width:52px; font-size:14px; color:var(--muted); letter-spacing:.06em; white-space:nowrap;
   }
-  /* brightness slider */
-  #brightVal{ flex:0 0 auto; min-width:40px; text-align:right; font-size:14px; color:var(--text); font-variant-numeric:tabular-nums; white-space:nowrap; }
-  input[type="range"]{
-    -webkit-appearance:none; appearance:none;
-    flex:1; height:44px; background:transparent; cursor:pointer; margin:0;
-  }
-  input[type="range"]::-webkit-slider-runnable-track{ height:6px; border-radius:99px; background:var(--track); }
-  input[type="range"]::-webkit-slider-thumb{
-    -webkit-appearance:none; width:28px; height:28px; border-radius:50%;
-    background:#f2f0eb; border:none; margin-top:-11px;
-    box-shadow:0 1px 6px rgba(0,0,0,.6);
-  }
-  input[type="range"]::-moz-range-track{ height:6px; border-radius:99px; background:var(--track); }
-  input[type="range"]::-moz-range-thumb{ width:28px; height:28px; border-radius:50%; background:#f2f0eb; border:none; }
-  .moon{ font-size:15px; color:var(--muted); flex:0 0 auto; line-height:1; }
+  /* brightness levels（10 檔分段按鈕，沿用 .toggle 樣式，數字標示） */
+  .bright-btn{ padding:0 11px; font-variant-numeric:tabular-nums; }
 
   /* color swatches */
   .swatches{ display:flex; gap:10px; flex:1; }
@@ -288,9 +275,18 @@
     <div class="panel">
       <div class="row">
         <span class="label" id="brightLabel">亮度</span>
-        <span class="moon" aria-hidden="true">☾</span>
-        <input type="range" id="bright" min="5" max="100" value="72" step="1" aria-labelledby="brightLabel" />
-        <span id="brightVal">中</span>
+        <div class="toggles" role="group" aria-label="Brightness">
+          <button type="button" class="toggle bright-btn" data-level="0" aria-pressed="false"><span class="tdot"></span>1</button>
+          <button type="button" class="toggle bright-btn" data-level="1" aria-pressed="false"><span class="tdot"></span>2</button>
+          <button type="button" class="toggle bright-btn" data-level="2" aria-pressed="false"><span class="tdot"></span>3</button>
+          <button type="button" class="toggle bright-btn" data-level="3" aria-pressed="false"><span class="tdot"></span>4</button>
+          <button type="button" class="toggle bright-btn" data-level="4" aria-pressed="true"><span class="tdot"></span>5</button>
+          <button type="button" class="toggle bright-btn" data-level="5" aria-pressed="false"><span class="tdot"></span>6</button>
+          <button type="button" class="toggle bright-btn" data-level="6" aria-pressed="false"><span class="tdot"></span>7</button>
+          <button type="button" class="toggle bright-btn" data-level="7" aria-pressed="false"><span class="tdot"></span>8</button>
+          <button type="button" class="toggle bright-btn" data-level="8" aria-pressed="false"><span class="tdot"></span>9</button>
+          <button type="button" class="toggle bright-btn" data-level="9" aria-pressed="false"><span class="tdot"></span>10</button>
+        </div>
       </div>
 
       <div class="row">
@@ -361,8 +357,6 @@
   var stage = document.getElementById('stage');
   var controls = document.getElementById('controls');
   var hint = document.getElementById('hint');
-  var bright = document.getElementById('bright');
-  var brightVal = document.getElementById('brightVal');
 
   /* ---------- 多語言字串 ---------- */
   var I18N = {
@@ -442,7 +436,7 @@
       date:function(m, d){ return d + ' ' + this.months[m - 1]; }
     }
   };
-  var state = { hour12:false, burn:true, wake:false, lang:'zh-Hant', orient:'auto', lastMin:-1, lastDay:-1 };
+  var state = { hour12:false, burn:true, wake:false, lang:'zh-Hant', orient:'auto', brightLevel:4, lastMin:-1, lastDay:-1 };
   function L(){ return I18N[state.lang] || I18N['zh-Hant']; }
 
   /* 防燒屏：在小範圍內循環的偏移位置（每分鐘移動一次） */
@@ -501,21 +495,30 @@
   window.addEventListener('resize', queueFit);
   window.addEventListener('orientationchange', function(){ setTimeout(queueFit, 60); });
 
-  /* ---------- 亮度 ---------- */
-  function brightText(v){
-    var lv = L().levels;
-    if(v <= 20) return lv[0];
-    if(v <= 45) return lv[1];
-    if(v <= 75) return lv[2];
-    return lv[3];
-  }
+  /* ---------- 亮度（10 檔，1 最暗 → 10 最亮，預設第 5 檔，選擇會記住） ---------- */
+  var BRIGHT_VALUES = [10,20,30,40,50,60,70,80,90,100];
+  var BRIGHT_KEY = 'sleep-clock:brightLevel';
+  try {
+    var savedBright = parseInt(window.localStorage.getItem(BRIGHT_KEY), 10);
+    if(savedBright >= 0 && savedBright < BRIGHT_VALUES.length) state.brightLevel = savedBright;
+  } catch(e){}
+  var brightBtns = controls.querySelectorAll('.bright-btn');
   function applyBright(){
-    var v = parseInt(bright.value, 10);
-    var b = 0.05 + (v / 100) * 0.95;   /* 最低仍約 0.10，避免暗到看不見 */
+    var v = BRIGHT_VALUES[state.brightLevel];
+    var b = 0.05 + (v / 100) * 0.95;   /* 最低仍約 0.145，避免暗到看不見 */
     document.body.style.setProperty('--clock-brightness', b.toFixed(3));
-    brightVal.textContent = brightText(v);
+    brightBtns.forEach(function(btn, i){
+      btn.setAttribute('aria-pressed', i === state.brightLevel ? 'true' : 'false');
+    });
   }
-  bright.addEventListener('input', function(){ applyBright(); pokeTimer(); });
+  brightBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.brightLevel = parseInt(btn.getAttribute('data-level'), 10);
+      try { window.localStorage.setItem(BRIGHT_KEY, String(state.brightLevel)); } catch(e){}
+      applyBright();
+      pokeTimer();
+    });
+  });
   applyBright();
 
   /* ---------- 顏色 ---------- */
